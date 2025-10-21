@@ -1,0 +1,23 @@
+# Dependencias para el proyecto de traducción de voz
+# Español -> Inglés con Whisper y pyttsx3
+
+# Transcripción y traducción de audio
+openai-whisper>=20231117
+
+# Síntesis de voz (Text-to-Speech)
+pyttsx3>=2.90
+pywin32>=305  # Para pythoncom (COM en Windows - necesario para TTS threading)
+
+# Detección de teclas (Push-to-Talk)
+keyboard>=0.13.5
+
+# Grabación de audio
+sounddevice>=0.4.6
+soundfile>=0.12.1
+
+# Procesamiento numérico (requerido por sounddevice)
+numpy>=1.24.0,<2.0.0
+
+# Dependencias adicionales para Whisper
+torch>=2.0.0
+torchaudio>=2.0.0

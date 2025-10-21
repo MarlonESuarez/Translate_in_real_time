@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+translate_speech_env/Lib/
+translate_speech_env/Scripts/
+translate_speech_env/Include/
+translate_speech_env/share/
+translate_speech_env/pyvenv.cfg
+
+# Solo ignorar directorios internos del venv, mantener archivos de código
+!translate_speech_env/*.py
+!translate_speech_env/*.md
+!translate_speech_env/*.txt
+!translate_speech_env/*.bat
+
+# Audio files (temporal)
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Temporal
+temp/
+tmp/
