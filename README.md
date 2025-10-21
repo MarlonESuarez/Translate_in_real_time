@@ -310,7 +310,7 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 
 Si tienes preguntas o sugerencias:
 - Abre un [Issue](https://github.com/MarlonESuarez/Translate_in_real_time/issues)
-- Contacta: tu_email@ejemplo.com
+- Contacta: mwolfvix@gmail.com
 
 ---
 
