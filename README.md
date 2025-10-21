@@ -292,9 +292,9 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 
 ## 👤 Autor
 
-**Jorge**
+**Marlon**
 
-- GitHub: [@TU_USUARIO](https://github.com/TU_USUARIO)
+- GitHub: [@MarlonESuarez](https://github.com/MarlonESuarez)
 
 ---
 
@@ -309,7 +309,7 @@ Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) par
 ## 📬 Contacto
 
 Si tienes preguntas o sugerencias:
-- Abre un [Issue](https://github.com/TU_USUARIO/Translate_v1/issues)
+- Abre un [Issue](https://github.com/MarlonESuarez/Translate_in_real_time/issues)
 - Contacta: tu_email@ejemplo.com
 
 ---
