@@ -10,25 +10,134 @@ from collections import deque
 import sys
 import pythoncom  # Para inicializar COM en Windows
 import keyboard  # Para detectar teclas (Push-to-Talk)
+import torch
+from silero_vad import load_silero_vad, read_audio, get_speech_timestamps
+from voice_profile import VoiceProfile, get_default_profile_path
 
-def load_audio_from_array(audio_array, sample_rate=16000):
+def trim_silence(audio_array, sample_rate=16000, silence_threshold_db=-40, min_silence_duration=0.3):
     """
-    Prepara array de audio para Whisper.
-    El audio ya está en el formato correcto desde sounddevice.
+    Recorta silencios al inicio y final del audio.
+
+    Args:
+        audio_array: Array de audio (numpy float32)
+        sample_rate: Frecuencia de muestreo
+        silence_threshold_db: Umbral de silencio en dB (ej: -40)
+        min_silence_duration: Duración mínima de silencio para recortar (segundos)
+
+    Returns:
+        Audio recortado sin silencios en extremos
+    """
+    if len(audio_array) == 0:
+        return audio_array
+
+    # Convertir umbral de dB a amplitud lineal
+    silence_threshold = 10 ** (silence_threshold_db / 20.0)
+
+    # Calcular energía por frame (ventanas de 100ms)
+    frame_length = int(sample_rate * 0.1)
+    energy = np.array([
+        np.sqrt(np.mean(audio_array[i:i+frame_length]**2))
+        for i in range(0, len(audio_array) - frame_length, frame_length)
+    ])
+
+    # Encontrar inicio: primer frame con energía sobre el umbral
+    start_idx = 0
+    for i, e in enumerate(energy):
+        if e > silence_threshold:
+            start_idx = i * frame_length
+            break
+
+    # Encontrar fin: último frame con energía sobre el umbral
+    end_idx = len(audio_array)
+    for i in range(len(energy) - 1, -1, -1):
+        if energy[i] > silence_threshold:
+            end_idx = (i + 1) * frame_length
+            break
+
+    # Asegurar que no recortamos todo
+    if start_idx >= end_idx:
+        return audio_array
+
+    return audio_array[start_idx:end_idx]
+
+
+def normalize_audio_rms(audio_array, target_rms_db=-20):
+    """
+    Normaliza audio usando RMS (Root Mean Square) para volumen consistente.
+
+    Args:
+        audio_array: Array de audio (numpy float32)
+        target_rms_db: RMS objetivo en dB (ej: -20)
+
+    Returns:
+        Audio normalizado
+    """
+    if len(audio_array) == 0:
+        return audio_array
+
+    # Calcular RMS actual
+    rms = np.sqrt(np.mean(audio_array**2))
+
+    if rms < 1e-10:  # Evitar división por cero (silencio completo)
+        return audio_array
+
+    # Convertir target de dB a lineal
+    target_rms = 10 ** (target_rms_db / 20.0)
+
+    # Calcular factor de ganancia
+    gain = target_rms / rms
+
+    # Limitar ganancia para evitar distorsión
+    gain = min(gain, 10.0)  # Máximo +20dB
+
+    # Aplicar ganancia
+    normalized = audio_array * gain
+
+    # Clip suave para evitar distorsión
+    normalized = np.clip(normalized, -1.0, 1.0)
+
+    return normalized
+
+
+def load_audio_from_array(audio_array, sample_rate=16000,
+                          apply_silence_trim=True, apply_normalization=True,
+                          silence_threshold_db=-40, target_rms_db=-20):
+    """
+    Prepara array de audio para Whisper con mejoras de calidad.
+
+    Args:
+        audio_array: Array de audio desde sounddevice
+        sample_rate: Frecuencia de muestreo
+        apply_silence_trim: Si True, recorta silencios
+        apply_normalization: Si True, normaliza con RMS
+        silence_threshold_db: Umbral para detección de silencio
+        target_rms_db: Nivel RMS objetivo
+
+    Returns:
+        Audio procesado listo para Whisper
     """
     # Asegurar que es float32
     audio_array = audio_array.astype(np.float32)
 
-    # Normalizar si es necesario
-    max_val = np.abs(audio_array).max()
-    if max_val > 1.0:
-        audio_array = audio_array / max_val
+    # 1. Recortar silencios (mejora precisión de Whisper)
+    if apply_silence_trim and len(audio_array) > sample_rate:  # Solo si >1 segundo
+        audio_array = trim_silence(audio_array, sample_rate, silence_threshold_db)
+
+    # 2. Normalización RMS (volumen consistente)
+    if apply_normalization:
+        audio_array = normalize_audio_rms(audio_array, target_rms_db)
+    else:
+        # Normalización básica por picos (fallback)
+        max_val = np.abs(audio_array).max()
+        if max_val > 1.0:
+            audio_array = audio_array / max_val
 
     return audio_array
 
 
 class RealtimeTranslator:
-    def __init__(self, model_size="base", source_language="es", push_to_talk=False):
+    def __init__(self, model_size="base", source_language="es", push_to_talk=False,
+                 vad_enabled=True, vad_threshold=0.5, voice_profile=None):
         """
         Inicializa el traductor en tiempo real
 
@@ -36,6 +145,9 @@ class RealtimeTranslator:
             model_size: Tamaño del modelo Whisper (tiny, base, small, medium, large)
             source_language: Idioma de origen (es para español)
             push_to_talk: Si True, solo graba mientras se mantiene presionada la barra espaciadora
+            vad_enabled: Si True, usa Voice Activity Detection para filtrar ruido
+            vad_threshold: Umbral de confianza VAD (0.0-1.0, recomendado: 0.5)
+            voice_profile: Perfil de voz personalizado (VoiceProfile) o None
         """
         print("Inicializando traductor en tiempo real...")
 
@@ -44,12 +156,44 @@ class RealtimeTranslator:
         self.source_language = source_language
         self.push_to_talk = push_to_talk
         self.space_pressed = False  # Estado de la barra espaciadora
-        
+
         # Configuración de audio
         self.sample_rate = 16000
         self.chunk_duration = 3  # Procesar cada 3 segundos (reducido de 5)
         self.chunk_samples = int(self.sample_rate * self.chunk_duration)
-        
+
+        # Perfil de voz personalizado
+        self.voice_profile = voice_profile
+
+        # Configuración de mejoras de audio
+        self.vad_enabled = vad_enabled
+        self.silence_threshold_db = -40  # Umbral para detección de silencio
+        self.min_speech_duration = 0.5  # Segundos mínimos de voz para procesar
+
+        # Aplicar configuración del perfil si existe
+        if voice_profile and voice_profile.is_calibrated:
+            print(f"✅ Cargando perfil de {voice_profile.user_name}")
+            self.vad_threshold = voice_profile.vad_threshold
+            self.target_rms_db = voice_profile.target_rms_db
+            self.min_speech_duration = voice_profile.min_speech_duration
+            voice_profile.update_usage_stats()
+        else:
+            # Valores por defecto si no hay perfil
+            self.vad_threshold = vad_threshold
+            self.target_rms_db = -20  # Nivel RMS objetivo para normalización
+
+        # Cargar modelo VAD si está habilitado
+        self.vad_model = None
+        if self.vad_enabled:
+            try:
+                print("Cargando modelo Silero VAD...")
+                self.vad_model = load_silero_vad()
+                print("✓ VAD cargado exitosamente")
+            except Exception as e:
+                print(f"⚠️  No se pudo cargar VAD: {e}")
+                print("Continuando sin VAD...")
+                self.vad_enabled = False
+
         # Buffer de audio con overlap
         self.audio_queue = queue.Queue(maxsize=10)  # Limitar queue para evitar retraso
         self.tts_queue = queue.Queue()  # Cola separada para TTS
@@ -101,7 +245,56 @@ class RealtimeTranslator:
         self.show_timings = False  # Cambiar a True para ver tiempos detallados
 
         print("Traductor listo!\n")
-    
+
+    def has_speech(self, audio_chunk):
+        """
+        Detecta si un chunk de audio contiene voz humana usando Silero VAD.
+
+        Args:
+            audio_chunk: Array numpy con audio (float32)
+
+        Returns:
+            True si se detecta voz, False si es silencio/ruido
+        """
+        if not self.vad_enabled or self.vad_model is None:
+            # Fallback: detección simple de energía
+            audio_energy = np.abs(audio_chunk).mean()
+            return audio_energy > 0.01
+
+        try:
+            # Convertir a tensor para Silero VAD
+            audio_tensor = torch.from_numpy(audio_chunk).float()
+
+            # Obtener timestamps de voz detectada
+            speech_timestamps = get_speech_timestamps(
+                audio_tensor,
+                self.vad_model,
+                threshold=self.vad_threshold,
+                sampling_rate=self.sample_rate,
+                min_speech_duration_ms=int(self.min_speech_duration * 1000),
+                return_seconds=False
+            )
+
+            # Si hay al menos un segmento de voz detectado
+            if len(speech_timestamps) > 0:
+                # Calcular duración total de voz detectada
+                total_speech_samples = sum(
+                    [seg['end'] - seg['start'] for seg in speech_timestamps]
+                )
+                total_speech_duration = total_speech_samples / self.sample_rate
+
+                # Verificar que haya suficiente voz
+                return total_speech_duration >= self.min_speech_duration
+
+            return False
+
+        except Exception as e:
+            # Si VAD falla, usar fallback de energía
+            if self.show_timings:
+                print(f"⚠️  VAD error (usando fallback): {e}")
+            audio_energy = np.abs(audio_chunk).mean()
+            return audio_energy > 0.01
+
     def audio_callback(self, indata, frames, time_info, status):
         """
         Callback para capturar audio del micrófono en tiempo real
@@ -129,10 +322,8 @@ class RealtimeTranslator:
             # Extraer chunk del buffer
             chunk = np.array(list(self.buffer)[:self.chunk_samples])
 
-            # Verificar si hay suficiente energía de audio (no es silencio)
-            audio_energy = np.abs(chunk).mean()
-
-            if audio_energy > 0.01:  # Umbral de silencio
+            # Usar VAD mejorado para detectar voz (reemplaza threshold simple)
+            if self.has_speech(chunk):
                 try:
                     self.audio_queue.put(chunk, block=False)
                 except queue.Full:
@@ -177,9 +368,8 @@ class RealtimeTranslator:
 
                     # Verificar que tenga al menos 1 segundo de audio
                     if len(chunk) >= self.sample_rate:
-                        audio_energy = np.abs(chunk).mean()
-
-                        if audio_energy > 0.01:
+                        # Usar VAD mejorado para validar que contiene voz
+                        if self.has_speech(chunk):
                             try:
                                 self.audio_queue.put(chunk, block=False)
                             except queue.Full:
@@ -188,6 +378,8 @@ class RealtimeTranslator:
                                     self.audio_queue.put(chunk, block=False)
                                 except:
                                     pass
+                        else:
+                            print("⚠️  No se detectó voz clara (solo ruido/silencio)\n")
                     else:
                         print("⚠️  Audio muy corto (min 1 segundo)\n")
 
@@ -291,9 +483,21 @@ class RealtimeTranslator:
 
                 # Transcribir y traducir con Whisper
                 try:
-                    # Preparar audio (sin necesidad de FFmpeg)
+                    # Preparar audio con mejoras: silence trimming + RMS normalization
                     prep_start = time.time()
-                    audio_prepared = load_audio_from_array(audio_chunk, self.sample_rate)
+
+                    # Si hay perfil de voz, aplicar ajustes personalizados primero
+                    if self.voice_profile and self.voice_profile.is_calibrated:
+                        audio_chunk = self.voice_profile.apply_to_audio(audio_chunk, self.sample_rate)
+
+                    audio_prepared = load_audio_from_array(
+                        audio_chunk,
+                        self.sample_rate,
+                        apply_silence_trim=True,
+                        apply_normalization=not (self.voice_profile and self.voice_profile.is_calibrated),  # Skip si profile ya normalizó
+                        silence_threshold_db=self.silence_threshold_db,
+                        target_rms_db=self.target_rms_db
+                    )
                     prep_time = time.time() - prep_start
 
                     # Transcribir

@@ -1,0 +1,162 @@
+{
+  "user_name": "Marlon",
+  "created_at": "2025-10-21T15:12:48.181283",
+  "version": "1.0",
+  "is_calibrated": true,
+  "audio_profile": {
+    "target_rms_db": -18.554758071899414,
+    "avg_pitch": 100.74980871025261,
+    "pitch_range": [
+      80.0,
+      127.38255033557047
+    ],
+    "speaking_rate": 0.0,
+    "dynamic_range": 39.973060607910156,
+    "avg_energy": 0.05499176308512688
+  },
+  "vad_config": {
+    "threshold": 0.6,
+    "min_speech_duration": 0.5
+  },
+  "calibration_metadata": {
+    "num_samples": 10,
+    "quality_score": 1.0,
+    "samples": [
+      {
+        "rms": 0.1663854420185089,
+        "rms_db": -15.577692985534668,
+        "energy": 0.0644671842455864,
+        "dynamic_range_db": 39.99152374267578,
+        "pitch_hz": 106.66666666666667,
+        "duration": 3.7,
+        "zero_crossing_rate": 0.16608108580112457,
+        "sample_rate": 16000,
+        "phrase_text": "Hola, mi nombre es Marlon",
+        "quality_score": 1.0,
+        "phrase_id": 0
+      },
+      {
+        "rms": 0.1358354240655899,
+        "rms_db": -17.339738845825195,
+        "energy": 0.06334158778190613,
+        "dynamic_range_db": 39.99152374267578,
+        "pitch_hz": 98.76543209876543,
+        "duration": 3.9,
+        "zero_crossing_rate": 0.18466345965862274,
+        "sample_rate": 16000,
+        "phrase_text": "Me gusta practicar inglés todos los días",
+        "quality_score": 1.0,
+        "phrase_id": 1
+      },
+      {
+        "rms": 0.123321034014225,
+        "rms_db": -18.179256439208984,
+        "energy": 0.05428442358970642,
+        "dynamic_range_db": 39.99152374267578,
+        "pitch_hz": 101.91082802547771,
+        "duration": 3.9,
+        "zero_crossing_rate": 0.18618589639663696,
+        "sample_rate": 16000,
+        "phrase_text": "¿Qué hora es? Son las tres de la tarde",
+        "quality_score": 1.0,
+        "phrase_id": 2
+      },
+      {
+        "rms": 0.102134108543396,
+        "rms_db": -19.81658363342285,
+        "energy": 0.04758895933628082,
+        "dynamic_range_db": 39.99152374267578,
+        "pitch_hz": 107.38255033557047,
+        "duration": 3.0,
+        "zero_crossing_rate": 0.1275833398103714,
+        "sample_rate": 16000,
+        "phrase_text": "El clima está muy agradable hoy",
+        "quality_score": 1.0,
+        "phrase_id": 3
+      },
+      {
+        "rms": 0.10931258648633957,
+        "rms_db": -19.22659683227539,
+        "energy": 0.052721213549375534,
+        "dynamic_range_db": 39.99152374267578,
+        "pitch_hz": 96.96969696969697,
+        "duration": 4.5,
+        "zero_crossing_rate": 0.1479305624961853,
+        "sample_rate": 16000,
+        "phrase_text": "Necesito comprar pan y leche en el supermercado",
+        "quality_score": 1.0,
+        "phrase_id": 4
+      },
+      {
+        "rms": 0.12123478949069977,
+        "rms_db": -18.32745361328125,
+        "energy": 0.06197709962725639,
+        "dynamic_range_db": 39.99125671386719,
+        "pitch_hz": 100.62893081761007,
+        "duration": 4.3,
+        "zero_crossing_rate": 0.19122092425823212,
+        "sample_rate": 16000,
+        "phrase_text": "Mi trabajo es muy interesante y desafiante",
+        "quality_score": 1.0,
+        "phrase_id": 5
+      },
+      {
+        "rms": 0.10264702886343002,
+        "rms_db": -19.7730712890625,
+        "energy": 0.04613002762198448,
+        "dynamic_range_db": 39.99152374267578,
+        "pitch_hz": 96.3855421686747,
+        "duration": 7.3,
+        "zero_crossing_rate": 0.195890411734581,
+        "sample_rate": 16000,
+        "phrase_text": "Los números importantes son: cero, uno, cinco, diez, veinte",
+        "quality_score": 1.0,
+        "phrase_id": 6
+      },
+      {
+        "rms": 0.11167822778224945,
+        "rms_db": -19.040630340576172,
+        "energy": 0.05411165580153465,
+        "dynamic_range_db": 39.99125671386719,
+        "pitch_hz": 98.15950920245399,
+        "duration": 4.0,
+        "zero_crossing_rate": 0.1691250056028366,
+        "sample_rate": 16000,
+        "phrase_text": "Me encanta escuchar música mientras trabajo",
+        "quality_score": 1.0,
+        "phrase_id": 7
+      },
+      {
+        "rms": 0.11082034558057785,
+        "rms_db": -19.10761070251465,
+        "energy": 0.05328145995736122,
+        "dynamic_range_db": 39.85877227783203,
+        "pitch_hz": 100.62893081761007,
+        "duration": 3.9,
+        "zero_crossing_rate": 0.15775640308856964,
+        "sample_rate": 16000,
+        "phrase_text": "Voy a viajar a la playa este fin de semana",
+        "quality_score": 1.0,
+        "phrase_id": 8
+      },
+      {
+        "rms": 0.11016730964183807,
+        "rms_db": -19.158945083618164,
+        "energy": 0.05201401561498642,
+        "dynamic_range_db": 39.94021224975586,
+        "pitch_hz": 100.0,
+        "duration": 4.8,
+        "zero_crossing_rate": 0.14611978828907013,
+        "sample_rate": 16000,
+        "phrase_text": "Gracias por tu ayuda, hasta luego, pideme un favor",
+        "quality_score": 1.0,
+        "phrase_id": 9
+      }
+    ]
+  },
+  "usage_stats": {
+    "sessions": 6,
+    "total_translations": 9,
+    "last_used": "2025-10-21T15:34:39.433903"
+  }
+}

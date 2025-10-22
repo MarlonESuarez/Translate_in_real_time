@@ -21,3 +21,6 @@ numpy>=1.24.0,<2.0.0
 # Dependencias adicionales para Whisper
 torch>=2.0.0
 torchaudio>=2.0.0
+
+# Voice Activity Detection (VAD) para mejorar calidad de audio
+silero-vad>=6.0.0

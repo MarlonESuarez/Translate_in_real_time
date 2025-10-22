@@ -3,30 +3,37 @@ Interfaz gráfica para el traductor de voz en tiempo real
 Español → Inglés
 """
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox, simpledialog
 import threading
 import queue
 from translate_realtime import RealtimeTranslator
+from voice_profile import VoiceProfile, get_default_profile_path
+from calibration_window import CalibrationWindow
 import sys
+import os
 
 
 class TranslatorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Traductor de Voz - Español → Inglés")
-        self.root.geometry("600x700")
+        self.root.geometry("600x750")
         self.root.resizable(False, False)
 
         # Variables
         self.translator = None
         self.is_translating = False
         self.output_queue = queue.Queue()
+        self.voice_profile = None  # Perfil de voz del usuario
 
         # Configurar estilo
         self.setup_styles()
 
         # Crear widgets
         self.create_widgets()
+
+        # Cargar o crear perfil al iniciar
+        self.load_or_create_profile()
 
         # Iniciar verificación de mensajes
         self.check_output_queue()
@@ -135,6 +142,33 @@ class TranslatorGUI:
                       value="small",
                       bg='white',
                       font=('Segoe UI', 9)).pack(side='left', padx=5)
+
+        # Separador
+        ttk.Separator(self.root, orient='horizontal').pack(fill='x', pady=10)
+
+        # Perfil de voz
+        profile_frame = tk.Frame(self.root, bg='white', padx=20, pady=10)
+        profile_frame.pack(fill='x')
+
+        self.profile_label = tk.Label(profile_frame,
+                                      text="Perfil de voz: No calibrado",
+                                      font=('Segoe UI', 9),
+                                      bg='white',
+                                      fg='#757575')
+        self.profile_label.pack(side='left')
+
+        self.calibrate_button = tk.Button(profile_frame,
+                                          text="🎤 Calibrar Voz",
+                                          command=self.open_calibration,
+                                          font=('Segoe UI', 9),
+                                          bg='#FF9800',
+                                          fg='white',
+                                          activebackground='#F57C00',
+                                          relief='flat',
+                                          cursor='hand2',
+                                          padx=15,
+                                          pady=5)
+        self.calibrate_button.pack(side='right')
 
         # Separador
         ttk.Separator(self.root, orient='horizontal').pack(fill='x', pady=10)
@@ -283,11 +317,12 @@ class TranslatorGUI:
     def run_translator(self, model_size, push_to_talk):
         """Ejecutar traductor en background"""
         try:
-            # Crear traductor con callback personalizado
+            # Crear traductor con callback personalizado y perfil de voz
             self.translator = TranslatorGUIAdapter(
                 model_size=model_size,
                 push_to_talk=push_to_talk,
-                gui_callback=self.on_translation
+                gui_callback=self.on_translation,
+                voice_profile=self.voice_profile  # Pasar perfil de voz
             )
 
             self.translator.start()
@@ -349,6 +384,11 @@ class TranslatorGUI:
 
         if self.translator:
             self.translator.stop()
+            # Actualizar estadísticas del perfil si existe
+            if self.voice_profile:
+                self.voice_profile.total_translations = self.translator.translations_spoken
+                profile_path = get_default_profile_path(self.voice_profile.user_name)
+                self.voice_profile.save(str(profile_path))
             self.translator = None
 
         # Restaurar controles
@@ -359,15 +399,99 @@ class TranslatorGUI:
         self.update_status("Detenido", '#757575')
         self.append_output("--- Sesión terminada ---", 'status')
 
+    def load_or_create_profile(self):
+        """Carga perfil existente o pregunta si crear uno nuevo"""
+        # Pedir nombre de usuario
+        user_name = simpledialog.askstring(
+            "Perfil de Usuario",
+            "¿Cuál es tu nombre?",
+            initialvalue="Usuario"
+        )
+
+        if not user_name:
+            user_name = "Usuario"
+
+        # Buscar perfil existente
+        profile_path = get_default_profile_path(user_name)
+
+        if os.path.exists(profile_path):
+            # Cargar perfil existente
+            self.voice_profile = VoiceProfile(user_name=user_name, profile_path=str(profile_path))
+            self.update_profile_display()
+        else:
+            # Preguntar si quiere calibrar ahora
+            result = messagebox.askyesno(
+                "Calibración de Voz",
+                f"Hola {user_name}!\n\n"
+                "No tienes un perfil de voz calibrado.\n\n"
+                "¿Quieres calibrar tu voz ahora? (2-3 minutos)\n\n"
+                "Esto mejorará significativamente la precisión\n"
+                "de reconocimiento de voz."
+            )
+
+            if result:
+                self.open_calibration(user_name)
+            else:
+                # Crear perfil vacío
+                self.voice_profile = VoiceProfile(user_name=user_name)
+                self.update_profile_display()
+
+    def open_calibration(self, user_name=None):
+        """Abre ventana de calibración"""
+        if self.is_translating:
+            messagebox.showwarning(
+                "Traductor Activo",
+                "Detén la traducción antes de calibrar tu voz"
+            )
+            return
+
+        # Usar nombre actual si no se proporciona
+        if not user_name:
+            user_name = self.voice_profile.user_name if self.voice_profile else "Usuario"
+
+        # Abrir ventana de calibración
+        cal_window = CalibrationWindow(self.root, user_name=user_name)
+        self.root.wait_window(cal_window.window)
+
+        # Obtener perfil creado
+        new_profile = cal_window.get_voice_profile()
+
+        if new_profile:
+            self.voice_profile = new_profile
+            self.update_profile_display()
+            messagebox.showinfo(
+                "Calibración Exitosa",
+                "Tu perfil de voz ha sido creado!\n\n"
+                "El sistema ahora está optimizado para tu voz."
+            )
+
+    def update_profile_display(self):
+        """Actualiza la visualización del perfil"""
+        if self.voice_profile and self.voice_profile.is_calibrated:
+            self.profile_label.config(
+                text=f"Perfil: {self.voice_profile.user_name} (Calibrado ✓)",
+                fg='#4CAF50'
+            )
+            self.calibrate_button.config(text="🔄 Recalibrar")
+        else:
+            name = self.voice_profile.user_name if self.voice_profile else "Usuario"
+            self.profile_label.config(
+                text=f"Perfil: {name} (No calibrado)",
+                fg='#FF9800'
+            )
+
 
 class TranslatorGUIAdapter(RealtimeTranslator):
     """Adaptador del traductor para trabajar con GUI"""
 
-    def __init__(self, model_size, push_to_talk, gui_callback):
+    def __init__(self, model_size, push_to_talk, gui_callback, vad_enabled=True, voice_profile=None):
         self.gui_callback = gui_callback
         super().__init__(model_size=model_size,
                         source_language="es",
-                        push_to_talk=push_to_talk)
+                        push_to_talk=push_to_talk,
+                        vad_enabled=vad_enabled,
+                        vad_threshold=0.5,
+                        voice_profile=voice_profile)
 
     def start(self):
         """Override para eliminar input() de terminal"""
@@ -452,9 +576,8 @@ class TranslatorGUIAdapter(RealtimeTranslator):
 
                     # Verificar que tenga al menos 1 segundo de audio
                     if len(chunk) >= self.sample_rate:
-                        audio_energy = np.abs(chunk).mean()
-
-                        if audio_energy > 0.01:
+                        # Usar VAD mejorado para validar que contiene voz
+                        if self.has_speech(chunk):
                             try:
                                 self.audio_queue.put(chunk, block=False)
                             except queue.Full:
@@ -463,6 +586,8 @@ class TranslatorGUIAdapter(RealtimeTranslator):
                                     self.audio_queue.put(chunk, block=False)
                                 except:
                                     pass
+                        else:
+                            self.gui_callback('status', '⚠️ No se detectó voz clara')
                     else:
                         self.gui_callback('status', '⚠️ Audio muy corto (min 1s)')
 
@@ -495,7 +620,19 @@ class TranslatorGUIAdapter(RealtimeTranslator):
                     from translate_realtime import load_audio_from_array
                     import time
 
-                    audio_prepared = load_audio_from_array(audio_chunk, self.sample_rate)
+                    # Si hay perfil de voz, aplicar ajustes personalizados primero
+                    if self.voice_profile and self.voice_profile.is_calibrated:
+                        audio_chunk = self.voice_profile.apply_to_audio(audio_chunk, self.sample_rate)
+
+                    # Preparar audio con mejoras (silence trimming + normalization)
+                    audio_prepared = load_audio_from_array(
+                        audio_chunk,
+                        self.sample_rate,
+                        apply_silence_trim=True,
+                        apply_normalization=not (self.voice_profile and self.voice_profile.is_calibrated),  # Skip si profile ya normalizó
+                        silence_threshold_db=self.silence_threshold_db,
+                        target_rms_db=self.target_rms_db
+                    )
 
                     result = self.model.transcribe(
                         audio_prepared,
